@@ -1,0 +1,209 @@
+#这是Logistics Regression的函数，其中包含自己的一些更改（针对3.6以上python版本的一些不同之处） 
+#原书经常出现未转至mat型数据、没有进行transpose等问题
+
+
+from numpy import *
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+def loadDataSet():
+    dataMat = []; labelMat = []
+    fr = open('E:\python study\MLBook_SourceCode\MLiA_SourceCode\machinelearninginaction\Ch05\\testSet.txt')    #testSet中有两个x，一个classflag
+    for line in fr.readlines():
+        lineArr = line.strip().split()  #.strip去掉首位空格 .split空格分词
+        dataMat.append([1.0, float(lineArr[0]), float(lineArr[1])]) #将每一行的前两项放入dataSet，另外在前面置1作为logistic的常数项
+        labelMat.append(int(lineArr[2]))    #将最后一项作为class项
+    return dataMat, labelMat    #返回数据项和类别项
+
+def sigmod(inX):    #对一个输入的数组x，计算其y=1/(1+e^(-x))
+    return 1.0/(1 + exp(-inX))
+
+def gradAscent(dataMatIn, classLabels): #进行梯度下降
+    # ## 关于循环里公式的说明：
+    # 针对于logistics分类器，其参数w = [w0, w1, w2, …, wi]，对一组特征x1, x2, … xi, 测试样本输入为wTx = w0 + w1x1 + w2x2 + … +wixi.
+    # 根据Sigmod函数，
+    # p(wTx) = Sigmod(wTx) = 1 / (1 + e ^ -wTx)，
+    # 其中p(wTx)为此参数下样本类别为y = 1的概率（结合sigmod函数曲线理解）
+    # 即： Pi = P(y=1 | x) = p(wTx) = 1 / (1 + e ^ -wTx), 同时，P(y=0 | x) = p(wTx) = 1 / (1 + e ^ wTx)
+    # 上述概率可合并为：
+    # P(yi) = (Pi ^ yi) * ((1 - Pi) ^ (1 - yi))
+    # 此时，针对本样本集进行最大似然估计，似然函数L(w)为：
+    # L(w) = ∏P(yi)
+    # 此时，对L(w)进行优化，优化目的为寻求一组参数w，使得L(w)最大。
+    # 由于L(w)的形式为连乘，对L(w)取对数，对ln(L(w))寻求最优
+    # ln(L(w)) = ∑(yi * ln(Pi) + (1 - yi) * ln(1 - Pi))
+    # = ∑(yi * ln(1 / (1 + e ^ (-wx))) + (1 - yi) * ln(1 / (1 + e ^ (wx))))
+    # = ∑(yi * (ln(e ^ (wx)) - ln(1 + e ^ (wx))) + (1 - yi) * ln(1 / (1 + e ^ (wx))))
+    # = ∑(yi * (wx) – yi * ln(1 + e ^ (wx))) – (1 - yi) * ln(1 + e ^ (wx)))
+    # = ∑(yi * (wx) –ln(1 + e ^ (wx)))
+    #
+    # 此时根据梯度下降法，▽(ln(L(w))) = ∑(yi * x – e ^ (wx) / (1 + e ^ (wx)) * x)
+    # = ∑(yi * x – e ^ (wx) / (1 + e ^ (wx)) * x)
+    # = ∑(yi –e ^ (wx) / (1 + e ^ (wx)))*x
+    # = ∑(yi - Sigmod(wx)) * x
+    # 注意，此处的▽(ln(L(w)))是一个向量，其每一个元素代表了对wk的偏导数，即：
+    dataMatrix = mat(dataMatIn) #data矩阵没有转置
+    labelMat = mat(classLabels).transpose() #对矩阵进行转置
+    m,n = shape(dataMatrix) #m为行数，n为列数。对于此段程序，m为数据数量，n为特征维度
+    alpha = 0.001   #步长
+    maxCycles = 500 #最大步数
+    weights = ones((n,1))
+    for k in range(maxCycles):  #参见上述中对循环里所用程序的公式说明
+        print(k)
+        h = sigmod(dataMatrix*weights)
+        error = (labelMat - h)
+        weights = weights + alpha *dataMatrix.transpose()* error
+    return weights
+
+def gradAscentSwc(dataMatIn, classLabels): #梯度下降自定义函数,增加误差限制，增加weightsHistory查看迭代历史
+    dataMatrix = mat(dataMatIn) #data矩阵没有转置
+    labelMat = mat(classLabels).transpose() #对矩阵进行转置
+    m,n = shape(dataMatrix) #m为行数，n为列数。对于此段程序，m为数据数量，n为特征维度
+    alpha = 0.01   #步长
+    maxCycles = 500 #最大步数
+    weights = ones((n,1))
+    weightsHistory = ones((n, 1))
+    for k in range(maxCycles):  #参见上述中对循环里所用程序的公式说明
+        h = sigmod(dataMatrix*weights)
+        error = (labelMat - h)
+        # errorSquare = error**2
+        errorArray = array(error)
+        errorSquare = errorArray**2
+        errorDistances = errorSquare.sum(axis=0)
+        distance = errorDistances**0.5/m
+        print('distance', k, distance)
+        print('weight',weights)
+        if distance <= 0.02:
+            break
+        elif k==maxCycles:
+            break
+        else:
+            weights = weights + alpha * dataMatrix.transpose() * error #dataMatrix.transpose()*error为梯度
+            continue
+        weightsHistory = column_stack((weightsHistory, weights))
+    return weights, weightsHistory
+
+def plotBestFit(wei):   #画图
+    weights = wei.getA()
+    # weights = wei
+    dataMat, labelMat = loadDataSet()
+    dataArr = array(dataMat)
+    n = shape(dataArr)[0]
+    xcord1 = []; ycord1 = []
+    xcord2 = []; ycord2 = []
+    for i in range(n):
+        if int(labelMat[i])==1:
+            xcord1.append(dataArr[i, 1]);ycord1.append(dataArr[i, 2])
+        else:
+            xcord2.append(dataArr[i, 1]);ycord2.append(dataArr[i, 2])
+    fig = plt.figure()
+    ax = fig.add_subplot(111)   #前两个数字表示几行几列。最后一个数字表示在第几个位置
+    ax.scatter(xcord1, ycord1, s=30, c='red', marker ='s')
+    ax.scatter(xcord2, ycord2, s=30, c='green')
+    x = arange(-3.0, 3.0, 0.1)
+    y = (-weights[0] - weights[1]*x)/weights[2]
+    ax.plot(x, y)
+    plt.xlabel('X1'); plt.ylabel('X2');
+    plt.show()
+
+def stoGradAscent0(dataMatrix, classLabel): #随机梯度下降
+    dataMatrix = mat(dataMatrix)    #增加转换类型
+    # print('shape of dataMatrix is', shape(dataMatrix))
+    m,n = shape(dataMatrix)
+    # print('m is', m,'\nn is',n,'\n' )
+    alpha = 0.01
+    weights = ones((n,1))   #源程序少（），不是mat类型
+    weightsHistory= ones((n,1))
+    # print('shape of weights is:', shape(weights))
+    # weights = mat(weights)
+    for i in range(m):
+        h = sigmod(sum(dataMatrix[i]*weights))
+        # print('for i=', i, 'h is', h)
+        error = classLabel[i] - h
+        # print('for i=', i, 'error is', error)
+        weights = weights + alpha * error * dataMatrix[i].transpose()   #源代少了个.transpose,导致weights和dataMatrix[i]一个为行向量，一个为列向量，出现错误
+        # print('for i=', i, 'weight is', weights)
+        # print('for i=', i, 'dataMatrix[%d] is:' %i ,dataMatrix[i])
+        weightsHistory= column_stack((weightsHistory, weights))
+    return weights, weightsHistory
+
+def weightHistPlot(weiHist):    #自定义函数，用来观察weights收敛记录，只针对三个权值
+    m,n = shape(weiHist)
+    weiHist0 = weiHist[0].tolist()
+    weiHist1 = weiHist[1].tolist()
+    weiHist2 = weiHist[2].tolist()
+    step = range(n)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(3,1,1)
+    ax1.scatter(step, weiHist0, c='g')
+
+    ax2 = fig.add_subplot(3,1,2)
+    ax2.scatter(step, weiHist1, c='b')
+
+    ax3 = fig.add_subplot(3,1,3)
+    ax3.scatter(step, weiHist2, c='r')
+
+    fig2 = plt.figure()
+    axstero = Axes3D(fig2)
+    axstero.scatter(weiHist1, weiHist2, weiHist0, c='y')
+    axstero.set_xlabel('weight[1]')
+    axstero.set_ylabel('weight[2]')
+    axstero.set_zlabel('weight[0]')
+
+    plt.show()
+    return 1
+
+def stoGradAscent1(dataMatix, classLable, numIter=150): #类似stoGradScent，有改动
+    dataMatix = mat(dataMatix)
+    m,n = shape(dataMatix)
+    weights = ones((n,1))
+    weightsHistory = ones((n,1))    #增加历史
+    for j in range(numIter):
+        dataIndex = list(range(m))
+        for i in range(m):  #i和j的作用？
+            alpha = 4/(1.0+j+i)+0.01    #这个公式的含义？
+            randIndex = int(random.uniform(0,len(dataIndex)))
+            h = sigmod(sum(dataMatix[randIndex]*weights))
+            error = classLable[randIndex] - h
+            weights = weights + alpha*error*dataMatix[randIndex].transpose()
+            del(dataIndex[randIndex])
+        weightsHistory = column_stack((weightsHistory,weights))
+    return weights, weightsHistory
+
+def classfiyVector(inX, weights):
+    prob = sigmod(inX * weights)
+    if prob > 0.5:
+        return 1.0
+    else:
+        return 0.0
+
+def colicTest():
+    frTrain = open('E:\python study\MLBook_SourceCode\MLiA_SourceCode\machinelearninginaction\\Ch05\horseColicTraining.txt')
+    frTest  = open('E:\python study\MLBook_SourceCode\MLiA_SourceCode\machinelearninginaction\\Ch05\horseColicTest.txt')
+    trainingSet = []; trainingLabels = []
+    for line in frTrain.readlines():
+        currLine = line.strip().split('\t')
+        lineArr = []
+        for i in range(21):
+            lineArr.append(float(currLine[i]))
+        trainingSet.append(lineArr)
+        trainingLabels.append(float(currLine[21])) #原为21
+    trainWeights, trainWeightsHist = stoGradAscent1(array(trainingSet), trainingLabels, 500)    #因为使用随机梯度下降法，所以每次训练出来的参数都不一样
+    errorCount = 0; numTestVec = 0.0
+    for line in frTest.readlines():
+        numTestVec += 1.0
+        currLine = line.strip().split('\t')
+        lineArr = []
+        for i in range(21):
+            lineArr.append(float(currLine[i]))
+        if int(classfiyVector(array(lineArr), trainWeights)) != int(currLine[21]):  #原为21
+            errorCount += 1
+    errorRate = (float(errorCount)/numTestVec)
+    print('the error rate of this test is: %f' % errorRate)
+    return errorRate
+
+def multiTest():    #对每次随机训练的参数进行校验，验证总体训练准确率
+    numTests = 10; errorSum = 0.0
+    for k in range(numTests):
+        errorSum += colicTest()
+    print('After %d iteration the average error rate is : %f' % (numTests, errorSum/float(numTests)))
