@@ -1,0 +1,74 @@
+#这是KNN的.py函数，其中包含主要子函数。creatDataSet为测试用函数
+
+from numpy import *
+import operator
+def creatDataSet():
+    group = array([[1.0,1.1],[1.0,1.0],[0,0],[0,0.1]])
+    labels = ['A','A','B','B']
+    return group, labels
+def classify0(inX, dataSet, labels, k):
+    dataSetSize = dataSet.shape[0]  # 开始计算距离
+    diffMat = tile(inX, (dataSetSize, 1)) - dataSet
+    sqDiffMat = diffMat ** 2
+    sqDistance = sqDiffMat.sum(axis=1)
+    distances = sqDistance ** 0.5  # 距离计算完成
+    sortedDistIndicies = distances.argsort()  # 进行排序
+    classCount = {}
+    for i in range(k):
+        voteIlabel = labels[sortedDistIndicies[i]]
+        classCount[voteIlabel] = classCount.get(voteIlabel, 0) + 1  # .get返回voteIlabel对应的值，此步即为按类别+1
+        sortedClassCount = sorted(classCount.items(),key = operator.itemgetter(1), reverse=True)
+    return sortedClassCount[0][0]
+def file2matrix(filename):
+    fr = open(filename)
+    arrayOlines = fr.readlines()    #得到文件中数据
+    numberOflines = len(arrayOlines)    #利用长度得到行数
+    returnMat = zeros((numberOflines, 3))   #创建dataSet初始矩阵
+    classLabelVector = []   #创建label初始矩阵（只有一个值）
+    index = 0
+    for line in arrayOlines:
+        line = line.strip() #删除每条数据中的空格等
+        listFromLine = line.split('\t')
+        returnMat[index,:] = listFromLine[0:3]  #index为根据数据行数而定的索引值
+        classLabelVector.append(int(listFromLine[-1]))  #在classLabekVector向量中增加label值（原为空值）
+        index += 1
+    return returnMat, classLabelVector
+def autoNorm(dataSet):
+    minVals = dataSet.min(0)    #获得最小值
+    maxVals = dataSet.max(0)    #获得最大值
+    ranges = maxVals - minVals  #获得差值区间
+    normDataSet = zeros(shape(dataSet)) #初始化正则化数据矩阵
+    m = dataSet.shape[0]    #获得数据矩阵维度
+    normDataSet = dataSet - tile(minVals, (m,1))    #通过最小值进行矩阵扩展
+    normDataSet = normDataSet/tile(ranges, (m,1))   #（真实值-最小值）/区间扩展得到正则化矩阵
+    return normDataSet, ranges, minVals
+def plotDataSet(dataSetMat, dataSetLabels, axisx, axisy): #自定义画图函数
+    import matplotlib
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.scatter(dataSetMat[:,axisx], dataSetMat[:, axisy], 15.0*array(dataSetLabels), 15.0*array(dataSetLabels))
+    plt.show()
+def datingClassTest():  #定义KNN误差测试函数
+    hoRatio = 0.10  #定义测试集占比10%
+    datingDataMat, datingDataLabels = file2matrix('E:\python study\MLiA_SourceCode\machinelearninginaction\Ch02\datingTestSet2.txt')
+    normMat ,ranges, minVals = autoNorm(datingDataMat)
+    m = normMat.shape[0]
+    numTestVecs = int(m*hoRatio)    #选择测试集行数（由于数据随机排列，可随意选）
+    errorCount = 0  #错误计数器
+    for i in range(numTestVecs):
+        classifierResult = classify0(normMat[i, :],normMat[numTestVecs:m,:], datingDataLabels[numTestVecs:m], 7)
+        print ("the clssifier came back with : ",classifierResult," the real answer is :", datingDataLabels[i])
+        if (classifierResult != datingDataLabels[i]):
+            errorCount += 1.0
+    print ("the total error rate is :",errorCount/float(numTestVecs))
+def classifyPerson():   #定义完整KNN聚类使用
+    resultList = ['not at all', 'in small doses', 'in large doses'] #定义结果输出
+    percentTats = float(input("persentage of time spent playing video games?"))     #输入参数1
+    ffMiles = float(input("frequent flier miles earned per year?")) #输入参数2
+    iceCream = float(input("liters of ice cream comsumed per year?"))   #输入参数3
+    datingDataMat, datingLabels = file2matrix('E:\python study\MLiA_SourceCode\machinelearninginaction\Ch02\datingTestSet2.txt')    #读取样本数据
+    normMat, ranges, minVals = autoNorm(datingDataMat)  #正则化
+    inArr = array([ffMiles, percentTats, iceCream]) #建立输入向量
+    classifierResult = classify0((inArr - minVals)/ranges, normMat, datingLabels, 3)    #进行聚类
+    print ("You will probably like this person :", resultList[classifierResult - 1])    #输出结果
