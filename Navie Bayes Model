@@ -1,0 +1,148 @@
+#这是Naive Bayes Model的函数库，主要用来邮件分类
+
+from numpy import *
+import re
+def loadDataSet():
+    postingList = [['my', 'dog', 'has', 'flea',\
+                    'problems', 'help', 'please', 'thanks'],
+                   ['maybe', 'not', 'take', 'him',\
+                    'to', 'dog', 'park', 'stupid'],
+                   ['my', 'dalmation', 'is', 'so', 'cute',\
+                    'I', 'love', 'him'],
+                   ['stop', 'posting', 'stupid', 'worthless', 'garbage'],
+                   ['mr', 'licks', 'ate', 'my', 'steak', 'how',\
+                    'to', 'stop', 'him'],
+                   ['quit', 'buying', 'worthless', 'dog', 'food', 'stupid']]
+    classVec = [0,1,0,1,0,1]    #1代表侮辱性文字，0代表正常
+    return postingList, classVec
+
+def createVocabList(dataSet):   #创建词汇表
+    vocabSet = set([])
+    for document in dataSet:
+        vocabSet = vocabSet | set(document)
+    return list(vocabSet)
+
+def setOfWords2Vec(vocabList, inputSet):    #生成词条相应的特征，词集模型
+    returnVec = [0]*len(vocabList)
+    for word in inputSet:
+        if word in vocabList:
+            returnVec[vocabList.index(word)] = 1    #vocablist.index(word)返回word在vocablist的位置，returnVec则表示在位置处是否出现
+        else: print ("the word: %s is not in my Vocabulary!" % word)
+    return returnVec
+
+def bagOfWords2VecMN(vocabList, inputSet):  #生成词条相应的特征，词袋模型
+    returnVec = [0]*len(vocabList)
+    for word in inputSet:
+        if word in vocabList:
+            returnVec[vocabList.index(word)] += 1   #与setOfWords2Vec的区别：一个是赋值，一个是增加
+    return returnVec
+
+def createFeatureMatrix(inputPostList, vocabList, modelTypeFlag):  #自定义函数，用来将文字特征化,modelTypeFlag用来判断词袋模型和词集模型
+    FeatureMat = [] #初始化特征矩阵
+    if modelTypeFlag == 'SOW':
+        for postinDoc in inputPostList: #循环扫描输入的文字矩阵
+            FeatureMat.append(setOfWords2Vec(vocabList, postinDoc)) #利用已知的词条表和文字矩阵叠加生成特征矩阵
+    elif modelTypeFlag == 'BOW':
+        for postinDoc in inputPostList: #循环扫描输入的文字矩阵
+            FeatureMat.append(bagOfWords2VecMN(vocabList, postinDoc)) #利用已知的词条表和文字矩阵叠加生成特征矩阵
+    else :
+        print ("ModelTypeFlag error! Please input SOW or BOW!\n\n")
+        input()
+    return FeatureMat   #返回特征矩阵
+
+def trainNB0(trainMatrix, trainCategory):  #训练函数
+    # trainMatrix是特征化以后的词条矩阵，内部元素应该为0,1...，trainCategory是每个词条所属类别
+    # trainMatrix的行数是词条的数目，列数应该是setOfWords2Vec生成向量的元素数（也就是vocabList的长度）
+    numTrainDocs = len(trainMatrix) #获得trainSet中的词条数目
+    numWords = len(trainMatrix[0])  #获得trainSet中第一词条的词数，由于已经特征化，可以代表
+    pAbusive = sum(trainCategory)/float(numTrainDocs)   #计算训练样本中侮辱性语言的概率（p（c1））
+    # p0Num = zeros(numWords); p1Num = zeros(numWords)    #初始化计数向量
+    # p0Denom = 0.0; p1Denom = 0.0
+    p0Num = ones(numWords); p1Num = ones(numWords)    #初始化计数向量,为防止某一项概率计算为0导致结果为0,初始化为1
+    p0Denom = 2.0; p1Denom = 2.0  #同上述原因,由于初始化为1,故此处分母初始为2
+    for i in range(numTrainDocs):   #循环计算累加标签为1的向量与标签为0的向量
+        if trainCategory[i] == 1:   #统计标签为1的向量
+            p1Num += trainMatrix[i] #计数向量+1，计数向量为标签为1的向量的累加
+            p1Denom += sum(trainMatrix[i])  #计数器为标签为1的向量的总词数
+        else :
+            p0Num += trainMatrix[i] #统计标签为0的向量
+            p0Denom += sum(trainMatrix[i])  #计数器为标签为0的向量的总词数
+    # p1Vect = p1Num/p1Denom  #一个向量，向量中的每一个元素代表p1Vect(i)/p1Denom = 某一个词在标签为1的词条中出现的概率,即p(w(i)/c1)
+    # p0Vect = p0Num/p0Denom  #一个向量，向量中的每一个元素代表p0Vect(i)/p1Denom = 某一个词在标签为0的词条中出现的概率,即p(w(i)/c0)
+    p1Vect = log(p1Num/p1Denom)  #一个向量，向量中的每一个元素代表p1Vect(i)/p1Denom = 某一个词在标签为1的词条中出现的概率,即p(w(i)/c1),使用log防止较小的数相乘得到数值解为0
+    p0Vect = log(p0Num/p0Denom)  #一个向量，向量中的每一个元素代表p0Vect(i)/p1Denom = 某一个词在标签为0的词条中出现的概率,即p(w(i)/c0),使用log防止较小的数相乘得到数值解为0
+    return p0Vect, p1Vect, pAbusive #f返回值为p(w(i)/c0), p(w(i)/c1), p（c1），即可构造贝叶斯方程
+# 此程序并没有计算贝叶斯方程下方的分母p（w），因为在判别时，p(c1/w)与p(c0/w)的分母是一样的，只要比较p（w/c0）*p(c0)与p（w/c1）*p(c1)的大小即可
+
+
+def classifyNB(vec2Classify, p0Vec, p1Vec, pClass1):    #贝叶斯分类器
+    p1 = sum(vec2Classify * p1Vec) + log(pClass1)   #log（∏p(w(i)/c1) * p(c1)) = ∑log(p(w(i)/c1)) + log(p(c1)))  即为计算0分类贝叶斯方程的分子log值
+    p0 = sum(vec2Classify * p0Vec) + log(1.0 - pClass1) #log（∏p(w(i)/c0) * p(c0)) = ∑log(p(w(i)/c0)) + log(p(c0)))  即为计算1分类贝叶斯方程的分子log值
+    if p1 > p0:
+        return 1
+    else:
+        return 0
+
+def testingNB():    #测试函数
+    listOfPosts, listClasses = loadDataSet()
+    myVocabList = createVocabList(listOfPosts)
+    trainMat = createFeatureMatrix(listOfPosts, myVocabList, 'SOW')
+    p0V, p1V, pAb = trainNB0(trainMat, listClasses)
+    testEntry = ['love', 'my','dalmation']
+    # thisDoc = array(setOfWords2Vec(myVocabList, testEntry))   #有什么区别？
+    thisDoc = setOfWords2Vec(myVocabList, testEntry)
+    print (testEntry, 'classified as :', classifyNB(thisDoc, p0V, p1V, pAb))
+    testEntry = ['stupid','garbage']
+    # thisDoc = array(setOfWords2Vec(myVocabList, testEntry))
+    thisDoc = setOfWords2Vec(myVocabList, testEntry)
+    print (testEntry, 'classified as :', classifyNB(thisDoc, p0V, p1V, pAb))
+
+def sentSplit(inputSent, flag = 1):  #自定义函数，用来划词
+    if flag == 0:
+        inputPattern = '\\s+'
+    elif flag == 1:
+        inputPattern = '\\W+'
+    elif flag == 2:
+        inputPattern = '\\W*'
+    else :
+        print ('Flag error! Please select the right pattern!\n\n\n')
+    regEx = re.compile(inputPattern)  # 匹配1~N个空格
+    listOfSent = regEx.split(inputSent)
+    return [tok.lower() for tok in listOfSent if len(tok) > 2]
+
+def textParse(bigString):   #转化函数，和上面的一个意思
+    listOfTokens = re.split(r'\W+',bigString)
+    return [tok.lower() for tok in listOfTokens if len(tok) > 2]
+
+def spamTest():
+    docList = []; classList = []; fullText = []
+    for i in range(1,26):
+        # wordList = sentSplit(open('E:/python study/MLBook_SourceCode/MLiA_SourceCode/machinelearninginaction/Ch04/email/spam/%d.txt' % i).read())
+        # 报错，因为txt里可能有非法字符，改为如下
+        wordList = sentSplit(open('E:/python study/MLBook_SourceCode/MLiA_SourceCode/machinelearninginaction/Ch04/email/spam/%d.txt' % i, errors='ignore').read())
+        docList.append(wordList)
+        fullText.extend(wordList)
+        classList.append(1) #生成spam项的单词集合和对应的标签项1(docList与classLsit)
+        #wordList = sentSplit(open('E:/python study/MLBook_SourceCode/MLiA_SourceCode/machinelearninginaction/Ch04/email/ham/%d.txt' % i).read())
+        # 同上
+        wordList = sentSplit(open('E:/python study/MLBook_SourceCode/MLiA_SourceCode/machinelearninginaction/Ch04/email/ham/%d.txt' % i, errors='ignore').read())
+        docList.append(wordList)
+        fullText.extend(wordList)
+        classList.append(0) #生成ham项的单词集合和对应的标签项0
+    vocabList = createVocabList(docList)    #生成不重复的词集
+    trainingSet = list(range(50)); testSet = []
+    for i in range(10):
+        randIndex = int(random.uniform(0, len(trainingSet)))    #在0到50中随机选择数平均分布
+        testSet.append(trainingSet[randIndex])  #在testSet中增加trainingSet中随机选择的10个样本
+        del(trainingSet[randIndex]) #trainingSet中样本删除,trainingSet变为中间少了一些数的1~50数组
+    trainMat = []; trainClasses = []
+    for docIndex in trainingSet:
+        trainMat.append(setOfWords2Vec(vocabList, docList[docIndex]))   #通过之前的trainingSet生成docIndex，将docList中对应docIndex的项通过setOfWords2Vec生成特征
+        trainClasses.append(classList[docIndex])    #同上，生成标签项
+    p0V, p1V, pSpam = trainNB0(trainMat, trainClasses)  #训练输出p0V，p1V, pSpam
+    errorCount = 0
+    for docIndex in testSet:    #对训练完成的p0V，p1V，pSpam进行测试
+        wordVector = setOfWords2Vec(vocabList, docList[docIndex])
+        if classifyNB(wordVector, p0V, p1V, pSpam) != classList[docIndex]:
+            errorCount += 1
+    print('The error rate is ', float(errorCount)/len(testSet))
