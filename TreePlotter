@@ -1,0 +1,87 @@
+# -*- coding: utf-8 -*-
+# 使用matplotlib对已经完成划分的决策树进行可视化显示，其中针对画图程序还未进行显示
+import matplotlib.pyplot as plt
+decisionNode = dict(boxstyle = "sawtooth", fc = "0.8")
+leafNode = dict(boxstyle = "round4", fc = "0.8")
+arrow_args = dict(arrowstyle = "<-")
+
+def plotNode(nodeTxt, centerPt, parentPt, nodeType):
+    createPlot.ax1.annotate(nodeTxt, xy = parentPt, xycoords = 'axes fraction', xytext = centerPt, textcoords = 'axes fraction',\
+                            va = "center", ha = "center", bbox = nodeType, arrowprops = arrow_args)
+
+# def createPlotOrigin():   #最初版本
+#     fig = plt.figure(1, facecolor= 'white')
+#     fig.clf()
+#     createPlotOrigin().ax1 = plt.subplot(111, frameon = False)
+#     plotNode('Decision Node', (0.5, 0.1), (0.1, 0.5), decisionNode)
+#     plotNode('Leaf Node', (0.8, 0.1), (0.3, 0.8), leafNode)
+#     plt.show()
+
+def getNumLeafs(myTree):    #通过递归来判断叶节点的数目
+    numLeafs = 0
+    firtSides = list(myTree.keys()) #形成list对象
+    firstStr = firtSides[0] #通过索引找到list对象的第一个值（第一次划分的特征标签）
+    # firstStr = myTree.keys()[0]   #python3 不支持对dict.key对象的索引
+    secondDict = myTree[firstStr]   #根据第一次划分的特征，引出后续的字典dict
+    for key in secondDict.keys():
+        if type(secondDict[key]) == dict:   #判断后续划分是否还是字典（即是否还在后面继续划分）
+            numLeafs += getNumLeafs(secondDict[key])    #递归
+        else :  numLeafs += 1   #若不是字典，则表示该路线划分完毕，leaf节点+1即可
+    return numLeafs #返回用来递归
+
+def getTreeDepth(myTree):   #通过递归来判断树的层数，与上函数同理
+    maxDepth = 0
+    firtSides = list(myTree.keys())
+    firstStr = firtSides[0]
+    # firstStr = myTree.keys()[0]   #python3 不支持对dict.key对象的索引
+    secondDict = myTree[firstStr]
+    for key in secondDict.keys():
+        if type(secondDict[key])== dict:
+            thisDepth = 1 + getTreeDepth(secondDict[key])
+        else: thisDepth = 1
+        if thisDepth > maxDepth: maxDepth = thisDepth
+    return maxDepth
+
+def retrieveTree(i):
+    listOfTrees = [{'no surfacing': {0: 'no', 1: {'flippers': {0: 'no', 1: 'yes'}}}}, \
+                   {'no surfacing': {0: 'no', 1: {'flippers': {0: {'head':{0: 'no', 1: 'yes'}}, 1: 'no'}}}}
+                   ]
+    return listOfTrees[i]
+
+#尚未注释画树程序
+def plotMidText(cntrPt, parentPt, txtString):
+    xMid = (parentPt[0] - cntrPt[0])/2.0 + cntrPt[0]
+    yMid = (parentPt[1] - cntrPt[1])/2.0 + cntrPt[1]
+    createPlot.ax1.text(xMid, yMid, txtString)
+
+def plotTree(myTree, parentPt, nodeTxt):
+    numLeafs = getNumLeafs(myTree)
+    depth = getTreeDepth(myTree)
+    firtSides = list(myTree.keys())
+    firstStr = firtSides[0]
+    cntrPt = (plotTree.xOff + (1.0 +float(numLeafs))/2.0/plotTree.totalW, plotTree.yOff)
+    plotMidText(cntrPt, parentPt, nodeTxt)
+    plotNode(firstStr, cntrPt, parentPt, decisionNode)
+    secondDict = myTree[firstStr]
+    plotTree.yOff = plotTree.yOff - 1.0/plotTree.totalD
+    for key in secondDict.keys():
+        if type(secondDict[key]) == dict:
+            plotTree(secondDict[key], cntrPt, str(key))
+        else:
+            plotTree.xOff = plotTree.xOff + 1.0/plotTree.totalW
+            plotNode(secondDict[key], (plotTree.xOff, plotTree.yOff), cntrPt, leafNode)
+            plotMidText((plotTree.xOff, plotTree.yOff), cntrPt, str(key))
+    plotTree.yOff = plotTree.yOff + 1.0/plotTree.totalD
+
+def createPlot(inTree):
+    fig = plt.figure(1, facecolor = 'white')
+    fig.clf()
+    axprops = dict(xticks = [], yticks = [])
+    createPlot.ax1 = plt.subplot(111, frameon = False, **axprops)
+    plotTree.totalW = float(getNumLeafs(inTree))
+    plotTree.totalD = float(getTreeDepth(inTree))
+    plotTree.xOff = -0.5/plotTree.totalW; plotTree.yOff = 1.0
+    plotTree(inTree, (0.5, 1.0), '')
+    plt.show()
+
+# 画树程序结束
