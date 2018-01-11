@@ -24,6 +24,12 @@ def clipAlpha(aj, H, L):
         aj = L
     return aj
 
+# 后面应用了SMO序列优化算法，在此之前需要首先了解支持向量机的最大间隔算法原理，主要内容包括
+# 1.函数间隔与几何间隔
+# 2.拉格朗日乘子法进行不等式约束优化
+# 3.对偶优化问题与原优化问题的关系、KKT条件
+# 4.核函数
+
 def smoSimple(dataMatIn, classLabels, C, toler, maxIter):
     dataMatrix = mat(dataMatIn); labelMat = mat(classLabels).transpose()
     b = 0; m, n = shape(dataMatrix)
