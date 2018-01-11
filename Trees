@@ -1,0 +1,120 @@
+# -*- coding: utf-8 -*-
+# 这是决策树（单一树）的python代码，加入了一些自己改动的函数更好用一些
+from math import log
+import operator
+def createDataSet():
+    dataSet = [[1, 1, 'yes'],
+               [1, 1, 'yes'],
+               [1, 0, 'no'],
+               [0, 1, 'no'],
+               [0, 1, 'no']]
+    labels = ['no surfacing', 'flippers']
+    return dataSet, labels
+
+def calcShannonEnt(dataSet):    #计算香农熵
+    numEntries = len(dataSet)
+    labelCounts = {}
+    for featVec in dataSet:
+        currentLabel = featVec[-1]
+        if currentLabel not in labelCounts.keys():
+            labelCounts[currentLabel] = 0
+        labelCounts[currentLabel] += 1
+    print (labelCounts)
+    shannonEnt = 0.0
+    for key in labelCounts:
+        prob = float(labelCounts[key]/numEntries)
+        shannonEnt -= prob*log(prob,2)
+    return shannonEnt
+
+def splitDataSet(dataSet, axis, value): #抽离数据，按照axis判断数据是否满足条件，满足则抽取，抽取后的数据无axis一项
+    retDataSet = []
+    for featVec in dataSet:
+        if featVec[axis] == value:
+            reducedFeatVec = featVec[:axis] #抽取axis前的数据
+            reducedFeatVec.extend(featVec[axis+1:]) #抽取axis后的数据，extend和append的用法不同
+            retDataSet.append(reducedFeatVec)   #对数据进行组合
+    return retDataSet
+
+def chooseBestFeatureToSplit(dataSet):  #根据信息增益与熵选择最好的分类
+    numFeatures = len(dataSet[0]) - 1   #根据数据长度计算特征数（特征数=len（）-1），此时视最后一组为标签
+    baseEntropy = calcShannonEnt(dataSet)   #计算基础集熵
+    bestInfoGain = 0.0; bestFeature = -1    #初始化
+    for i in range(numFeatures):
+        featList = [example[i] for example in dataSet]  #对每一个特征，计算该特征维度上的数据集
+        uniqueVals = set(featList)  #通过set函数去除重复值
+        newEntropy = 0.0
+        for value in uniqueVals:
+            subDataSet = splitDataSet(dataSet, i ,value)    #通过抽离数据函数，对每一个特征维度上的特征值进行数据抽取，如在列1维度根据不同的特征进行分解
+            prob = len(subDataSet)/float(len(dataSet))  #计算抽离数据集的p（x）
+            newEntropy += prob * calcShannonEnt(subDataSet) #计算熵
+        infoGain = baseEntropy - newEntropy    #计算信息增益
+        if (infoGain > bestInfoGain):   #排序
+            bestInfoGain = infoGain
+            bestFeature = i   #返回信息增益最大的特征维度
+    return bestFeature
+
+def majorityCnt(classList): #返回出现次数最多的类名称，用来解决数据标签类型比较多的情况（如有多种（>2）物体要进行分类）
+    classCount = {}
+    for vote in classCount:
+        if vote not in classCount.keys():classCount[vote] = 0
+        classCount[vote] += 1
+    sortedClassCount = sorted(classCount.items(), key = operator.itemgetter(1), reverse= True)
+    return sortedClassCount[0][0]
+
+def createTree(dataSet , labels):   #生成决策树数据
+    classList = [example[-1] for example in dataSet]    #提取dataSet中的最后一列数据表（作为判断特征）
+    if classList.count(classList[0]) == len(classList): #判断是否该列全部为同一值，若是，则直接返回特征
+        return classList[0]
+    if len(dataSet[0]) == 1:    #判断是否数据里只有一个特征
+        return majorityCnt(classList)   #是则返回次数最多的类
+    bestFeat = chooseBestFeatureToSplit(dataSet)    #根据信息增选择最适合分类的特征
+    bestFeatLabel = labels[bestFeat]    #找到标签页中对应的标签
+    myTree = {bestFeatLabel:{}} #在myTree字典中为选择好的标签创建词条
+    del(labels[bestFeat])   #在标签中删除已经选择完的词条
+    featValues = [example[bestFeat] for example in dataSet] #提取该标签对应的特征数据
+    uniqueVals = set(featValues)    #生成最小集
+    for value in uniqueVals:    #调用自己，在字典中加入该标签对应的数据，注意该循环中针对每一个value都进行了计算，也就是对每一个分开后的数据集都进行了createTree运算
+        subLabels = labels[:]   #对labels进行复制使用
+        myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels)    #对每个数据集再次进行计算
+    return myTree
+
+def createTreeSWC(dataSet , labels):   #SWC修改，生成决策树数据,改动labels处理方式,不改动原始labels，函数中使用sublabels进行处理
+    subLabels = labels[:]   #对labels进行复制成subLabels，subLabels与labels不占用同一内存
+    classList = [example[-1] for example in dataSet]    #提取dataSet中的最后一列数据表（作为判断特征）
+    if classList.count(classList[0]) == len(classList): #判断是否该列全部为同一值，若是，则直接返回特征
+        return classList[0]
+    if len(dataSet[0]) == 1:    #判断是否数据里只有一个特征
+        return majorityCnt(classList)   #是则返回次数最多的类
+    bestFeat = chooseBestFeatureToSplit(dataSet)    #根据信息增选择最适合分类的特征
+    bestFeatLabel = subLabels[bestFeat]    #找到标签页中对应的标签
+    myTree = {bestFeatLabel:{}} #在myTree字典中为选择好的标签创建词条
+    del(subLabels[bestFeat])   #在标签中删除已经选择完的词条
+    featValues = [example[bestFeat] for example in dataSet] #提取该标签对应的特征数据
+    uniqueVals = set(featValues)    #生成最小集
+    for value in uniqueVals:    #调用自己，在字典中加入该标签对应的数据，注意该循环中针对每一个value都进行了计算，也就是对每一个分开后的数据集都进行了createTree运算
+        #subLabels = labels[:]   #对labels进行复制使用
+        myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels)    #对每个数据集再次进行计算
+    return myTree
+
+def classify(inputTree, featLabels, testVec):   #使用训练完成的决策树进行分类
+    firstSides = list(inputTree.keys())
+    firstStr = firstSides[0]    #找到第一个分类特征
+    secondDict = inputTree[firstStr]    #次级字典
+    featIndex = featLabels.index(firstStr)  #查找在featLabels中的firstStr所在位置，用来确定判断testVec分类使用的一级特征位置
+    for key in secondDict.keys():   #通过分析下级是否为dict，判断是否到叶节点，若到则返回最终分类classLabel，若不到，则调用classify函数继续判断
+        if testVec[featIndex] == key:
+            if type(secondDict[key]) == dict:
+                classLabel = classify(secondDict[key], featLabels, testVec)
+            else : classLabel = secondDict[key]
+    return classLabel
+
+def storeTree(inputTree, filename):
+    import pickle
+    fw = open(filename, 'wb')   #注意python3.6中为wb
+    pickle.dump(inputTree, fw)
+    fw.close()
+
+def grabTree(filename):
+    import pickle
+    fr = open(filename,'rb')    #注意python3.6中为rb
+    return  pickle.load(fr)
